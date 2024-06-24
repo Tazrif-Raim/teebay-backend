@@ -54,9 +54,22 @@ enum ProductStatus {
   RENTED
 }
 
+type Booking {
+  id: Int!
+  user_id: Int!
+  product_id: Int!
+  start_date: DateTime!
+  end_date: DateTime!
+  user: User!
+  product: Product!
+}
+
 type Query {
-  products: [Product!]!
-  product(id: Int!): Product!
+  findAllProductOfUser: [Product!]!
+  findAllProductRelatedToUser: [Product!]!
+  findAllAvailableProduct: [Product!]!
+  findOneProduct(id: Int!): Product!
+  findFutureBookingsByProductId(product_id: Float!): [Booking!]!
   login(LoginInput: LoginInput!): Boolean!
 }
 
@@ -69,6 +82,8 @@ type Mutation {
   createProduct(createProductInput: CreateProductInput!): Product!
   updateProduct(updateProductInput: UpdateProductInput!): Product!
   removeProduct(id: Int!): Product!
+  buyProduct(product_id: Int!, action: String!): Product!
+  rentProduct(product_id: Int!, action: String!, start_date: DateTime!, end_date: DateTime!): Product!
   createUser(createUserInput: CreateUserInput!): User!
 }
 
@@ -85,11 +100,11 @@ input CreateProductCategoryInput {
 }
 
 input UpdateProductInput {
-  title: String
-  description: String
-  sell_price: Float
-  rent_price_daily: Float
-  categories: [CreateProductCategoryInput!]
+  title: String!
+  description: String!
+  sell_price: Float!
+  rent_price_daily: Float!
+  categories: [CreateProductCategoryInput!]!
   id: Int!
 }
 
