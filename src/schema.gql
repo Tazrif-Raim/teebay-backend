@@ -1,0 +1,101 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type Category {
+  name: String!
+  products: [ProductCategory!]!
+}
+
+type ProductCategory {
+  product_id: Int!
+  category_name: String!
+  product: Product!
+  category: Category!
+}
+
+type User {
+  id: Int!
+  email: String!
+  password: String!
+  firstname: String!
+  lastname: String!
+  access: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+type Product {
+  id: Int!
+  title: String!
+  description: String!
+  sell_price: Float!
+  rent_price_daily: Float!
+  status: ProductStatus!
+  sell_or_rent_time: DateTime
+  rent_time_end: DateTime
+  uploaded_by: User!
+  uploaded_by_id: Float!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  received_by: User
+  received_by_id: Float
+  categories: [ProductCategory!]!
+}
+
+enum ProductStatus {
+  AVAILABLE
+  SOLD
+  RENTED
+}
+
+type Query {
+  products: [Product!]!
+  product(id: Int!): Product!
+  login(LoginInput: LoginInput!): Boolean!
+}
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+type Mutation {
+  createProduct(createProductInput: CreateProductInput!): Product!
+  updateProduct(updateProductInput: UpdateProductInput!): Product!
+  removeProduct(id: Int!): Product!
+  createUser(createUserInput: CreateUserInput!): User!
+}
+
+input CreateProductInput {
+  title: String!
+  description: String!
+  sell_price: Float!
+  rent_price_daily: Float!
+  categories: [CreateProductCategoryInput!]!
+}
+
+input CreateProductCategoryInput {
+  category_name: String!
+}
+
+input UpdateProductInput {
+  title: String
+  description: String
+  sell_price: Float
+  rent_price_daily: Float
+  categories: [CreateProductCategoryInput!]
+  id: Int!
+}
+
+input CreateUserInput {
+  email: String!
+  password: String!
+  firstname: String!
+  lastname: String!
+}

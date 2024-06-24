@@ -1,0 +1,69 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        BigInt      @id @default(autoincrement())
+  email     String      @unique
+  password  String
+  firstname String
+  lastname  String
+  access    Role        @default(USER)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  products  Product[]  @relation("uploaded_by")
+  received_products Product[] @relation("received_by")  
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model Product {
+  id                 BigInt    @id @default(autoincrement())
+  title              String
+  description        String
+  sell_price         Float
+  rent_price_daily   Float
+  status             ProductStatus @default(AVAILABLE)
+  sell_or_rent_time  DateTime?
+  rent_time_end      DateTime?
+  uploaded_by        User     @relation("uploaded_by", fields: [uploaded_by_id], references: [id])
+  uploaded_by_id     BigInt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  received_by        User?    @relation("received_by", fields: [received_by_id], references: [id])
+  received_by_id     BigInt?
+  categories         ProductCategory[]
+}
+
+model Category {
+  name String @id
+  products    ProductCategory[]
+}
+
+model ProductCategory {
+  product_id BigInt
+  category_name String
+  product     Product @relation(fields: [product_id], references: [id])
+  category    Category @relation(fields: [category_name], references: [name])
+  @@id([product_id, category_name])
+}
+
+enum ProductStatus {
+  AVAILABLE
+  SOLD
+  RENTED
+}
