@@ -458,14 +458,30 @@ export class ProductsService {
     }
   }
 
+  async cleanSession(){
+    try{
+      await this.db.session.deleteMany({
+        where: {
+          expiry: {
+            lt: new Date(),
+          },
+        },
+      });
+    }
+    catch(e){
+      console.log(e);
+    }
+  }
+
   async scheduleRentResolve() {
     //at 12am every night
     cron.schedule('0 0 * * *', async () => {
-      console.log('Running scheduled rent resolves...');
+      console.log('Running scheduled tasks...');
       try{
         await this.rentResolveSet();
         await this.rentResolveDelete();
-        console.log("Scheduled rent resolves completed");
+        await this.cleanSession();
+        console.log("Scheduled tasks completed");
       }
       catch(e){
         console.error(e);
