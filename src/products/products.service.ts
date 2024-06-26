@@ -1,7 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { CreateProductInput } from './dto/create-product.input';
 import { UpdateProductInput } from './dto/update-product.input';
-import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Product } from './entities/product.entity';
 import { ProductStatus } from './entities/product-status.enum';
@@ -10,10 +9,8 @@ import * as cron from 'node-cron';
 @Injectable()
 export class ProductsService {
   constructor(private readonly db: PrismaService) {}
-  
-  eemail: string = 'raim@gmail.com';
 
-  async createProduct(rawProductData: CreateProductInput): Promise<Product> {
+  async createProduct(rawProductData: CreateProductInput, email: string): Promise<Product> {
     //productData.status = ProductStatus.AVAILABLE;
     //productData.createdAt = new Date();
     //productData.updatedAt = productData.createdAt;
@@ -22,7 +19,7 @@ export class ProductsService {
     try{
       const user:any = await this.db.user.findUnique({
         where: {
-          email: this.eemail
+          email: email
         }
       });
       const uploaded_by_id:any = user.id;
@@ -111,7 +108,7 @@ export class ProductsService {
     try{
       const user:any = await this.db.user.findUnique({
         where: {
-          email: this.eemail
+          email: email
         }
       });
       const uploaded_or_received_by_id:any = user.id;
@@ -150,7 +147,7 @@ export class ProductsService {
     return product;
   }
 
-  async update(updateProductInput: UpdateProductInput) : Promise<Product | null> {
+  async update(updateProductInput: UpdateProductInput, email: string) : Promise<Product | null> {
     try {
       const { id, categories, ...productData } = updateProductInput;
 
@@ -167,9 +164,9 @@ export class ProductsService {
         return null;
       }
 
-      // if (currentProduct.uploaded_by.email !== this.eemail) {
-      //   return null;
-      // }
+      if (currentProduct.uploaded_by.email !== email) {
+        return null;
+      }
 
       const currentCategoryNames = currentProduct.categories.map(category => category.category.name);
       const newCategoryNames = categories.map(category => category.category_name);
@@ -238,7 +235,7 @@ export class ProductsService {
         const bookings = await this.findFutureBookingsByProductId(productId);
         let availableAfter = new Date(); 
         if (bookings && bookings.length > 0) {
-          availableAfter = bookings.reduce((prev, current) => (prev.end_date > current.end_date) ? prev : current).end_date;
+          availableAfter = bookings[bookings.length - 1].end_date;
         }
   
         // Step 3: Perform the Action
@@ -356,15 +353,26 @@ export class ProductsService {
       });
   
       for (const booking of rentStarted) {
-        await this.db.product.update({
+        const product = await this.db.product.findUnique({
           where: {
             id: booking.product_id,
           },
-          data: {
-            status: ProductStatus.RENTED,
-            received_by_id: booking.user_id,
+          select: {
+            status: true,
           },
         });
+
+        if (product && product.status !== ProductStatus.SOLD) {
+          await this.db.product.update({
+            where: {
+              id: booking.product_id,
+            },
+            data: {
+              status: ProductStatus.RENTED,
+              received_by_id: booking.user_id,
+            },
+          });
+        }
       }
     }
     catch(e){
@@ -383,16 +391,27 @@ export class ProductsService {
       });
   
       for (const booking of bookings) {
-        await this.db.product.update({
+        const product = await this.db.product.findUnique({
           where: {
             id: booking.product_id,
           },
-          data: {
-            status: ProductStatus.AVAILABLE,
-            received_by_id: null,
+          select: {
+            status: true,
           },
         });
-  
+      
+        if (product && product.status !== ProductStatus.SOLD) {
+          await this.db.product.update({
+            where: {
+              id: booking.product_id,
+            },
+            data: {
+              status: ProductStatus.AVAILABLE,
+              received_by_id: null,
+            },
+          });
+        }
+
         await this.db.booking.delete({
           where: {
             id: booking.id,
@@ -407,26 +426,25 @@ export class ProductsService {
 
   //done
   //need to add validation to check if the product is uploaded by the user
-  async remove(id: number) : Promise<Boolean> {
+  async remove(id: number, email: string) : Promise<Boolean> {
     try{
-      // const product = await this.db.product.findUnique({
-      //   where: {
-      //     id: id
-      //   }
-      // });
-      // if (!product) {
-      //   return false;
-      // }
+      const product:any = await this.db.product.findUnique({
+        where: {
+          id: id
+        },
+        include: {
+          uploaded_by: true
+        }
+      });
 
-      // await this.db.booking.deleteMany({
-      //   where: {
-      //     product_id: id
-      //   }
-      // });
+      if (!product) {
+        return false;
+      }
 
-      // if (product.uploaded_by.email !== this.eemail) {
-      //   return false;
-      // }
+      if (product.uploaded_by.email !== email || product.status !== ProductStatus.AVAILABLE) {
+        return false;
+      }
+
       await this.db.product.delete({
         where: {
           id: id

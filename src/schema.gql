@@ -70,7 +70,8 @@ type Query {
   findAllAvailableProduct: [Product!]!
   findOneProduct(id: Int!): Product!
   findFutureBookingsByProductId(product_id: Float!): [Booking!]!
-  login(LoginInput: LoginInput!): Boolean!
+  token(LoginInput: LoginInput!): String!
+  logout(token: String!): Boolean!
 }
 
 input LoginInput {
