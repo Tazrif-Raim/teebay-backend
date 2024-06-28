@@ -7,6 +7,7 @@ import { AuthService } from 'src/Auth/auth.service';
 import { Booking } from 'src/products/entities/booking.entity';
 import { UseGuards } from '@nestjs/common';
 import { UserSessionGuard } from 'src/Auth/guards/user-session.guard';
+import { UserRelatedProducts } from './entities/UserRelatedProducts.entity';
 
 @Resolver(() => Product)
 export class ProductsResolver {
@@ -42,11 +43,20 @@ export class ProductsResolver {
   }
 
   @UseGuards(UserSessionGuard)
-  @Query(() => [Product])
-  async findAllProductRelatedToUser(@Context() context): Promise<Product[] | null> {
+  @Query(() => UserRelatedProducts)
+  async findAllProductRelatedToUser(@Context() context): Promise<UserRelatedProducts | null> {
     try{
       const email = context.req.user.email;
-      return await this.productsService.findAllProductRelatedToUser(email);
+      const borrowed = await this.productsService.findUserBorrowedProduct(email);
+      const lent = await this.productsService.findUserLentProduct(email);
+      const bought = await this.productsService.findUserBoughtProduct(email);
+      const sold = await this.productsService.findUserSoldProduct(email);
+      return {
+        borrowed,
+        lent,
+        bought,
+        sold
+      };
     }
     catch(e){
       console.log(e);
@@ -56,9 +66,10 @@ export class ProductsResolver {
 
   @UseGuards(UserSessionGuard)
   @Query(() => [Product])
-  async findAllAvailableProduct(): Promise<Product[] | null> {
+  async findAllAvailableProduct(@Context() context): Promise<Product[] | null> {
     try {
-      return await this.productsService.findAllAvailableProduct();
+      const email = context.req.user.email;
+      return await this.productsService.findAllAvailableProduct(email);
     }
     catch(e){
       console.log(e);
@@ -79,8 +90,8 @@ export class ProductsResolver {
   }
 
   @UseGuards(UserSessionGuard)
-  @Mutation(() => Product)
-  async updateProduct(@Args('updateProductInput') updateProductInput: UpdateProductInput, @Context() context) {
+  @Mutation(() => Product || null)
+  async updateProduct(@Args('updateProductInput') updateProductInput: UpdateProductInput, @Context() context) : Promise<Product | null>{
     try {
       const email = context.req.user.email;
       return await this.productsService.update(updateProductInput, email);
@@ -92,7 +103,7 @@ export class ProductsResolver {
   }
 
   @UseGuards(UserSessionGuard)
-  @Mutation(() => Product)
+  @Mutation(() => Boolean)
   async removeProduct(@Args('id', { type: () => Int }) id: number, @Context() context) : Promise<Boolean> {
     try{
       const email = context.req.user.email;
@@ -118,7 +129,7 @@ export class ProductsResolver {
   }
 
   @UseGuards(UserSessionGuard)
-  @Mutation(() => Product)
+  @Mutation(() => Boolean)
   async rentProduct(@Args('product_id', { type: () => Int }) product_id: number, 
                     @Args('action') action: 'rent', 
                     @Args('start_date') start_date:Date, 
@@ -138,7 +149,7 @@ export class ProductsResolver {
   //this should return a list of list of start_date and end_date
   @UseGuards(UserSessionGuard)
   @Query(() => [Booking])
-  async findFutureBookingsByProductId(@Args('product_id') product_id:number): Promise<Booking[] | null> {
+  async findFutureBookingsByProductId(@Args('product_id', { type: () => Int }) product_id:number): Promise<Booking[] | null> {
     try{
       const bookings = await this.productsService.findFutureBookingsByProductId(product_id);
       const start_end_date = [];

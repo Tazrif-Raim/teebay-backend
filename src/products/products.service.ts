@@ -5,6 +5,8 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { Product } from './entities/product.entity';
 import { ProductStatus } from './entities/product-status.enum';
 import * as cron from 'node-cron';
+import { UserRelatedProducts } from './entities/UserRelatedProducts.entity';
+import { Booking } from '@prisma/client';
 
 @Injectable()
 export class ProductsService {
@@ -45,6 +47,7 @@ export class ProductsService {
         }
       });
       product.id = Number(product.id);
+      product.uploaded_by.password = '';
       return product;
       
     }
@@ -68,11 +71,14 @@ export class ProductsService {
         },
         include: {
           categories: true,
-          uploaded_by: true
+          uploaded_by: true,
+          received_by: true,
         }
       });
       products.forEach((product:any) => {
         product.id = Number(product.id);
+        product.uploaded_by.password = '';
+        if(product.received_by) product.received_by.password = '';
       });
       return products;
     }
@@ -82,40 +88,23 @@ export class ProductsService {
     }
   }
 
-  async findAllAvailableProduct() : Promise<Product[] | null> {
-    try{
-      const products:any = await this.db.product.findMany({
-        where: {
-          status: ProductStatus.AVAILABLE && ProductStatus.RENTED
-        },
-        include: {
-          categories: true,
-          uploaded_by: true
-        }
-      });
-      products.forEach((product:any) => {
-        product.id = Number(product.id);
-      });
-      return products;
-    }
-    catch(e){
-      console.log(e);
-      return null;
-    }
-  }
-
-  async findAllProductRelatedToUser(email: string) : Promise<Product[] | null> {
+  async findAllAvailableProduct(email: string) : Promise<Product[] | null> {
     try{
       const user:any = await this.db.user.findUnique({
         where: {
           email: email
         }
       });
-      const uploaded_or_received_by_id:any = user.id;
       const products:any = await this.db.product.findMany({
         where: {
-          uploaded_by_id: uploaded_or_received_by_id,
-          received_by_id: uploaded_or_received_by_id
+          uploaded_by_id: {
+            not: {
+              equals: user.id
+            }
+          },
+          status: {
+            in: [ProductStatus.AVAILABLE, ProductStatus.RENTED],
+          }
         },
         include: {
           categories: true,
@@ -124,6 +113,130 @@ export class ProductsService {
       });
       products.forEach((product:any) => {
         product.id = Number(product.id);
+      });
+      return products;
+    }
+    catch(e){
+      console.log(e);
+      return null;
+    }
+  }
+
+  async findUserBoughtProduct(email: string) : Promise<Product[] | null> {
+    try{
+      const user:any = await this.db.user.findUnique({
+        where: {
+          email: email
+        }
+      });
+      const products:any = await this.db.product.findMany({
+        where: {
+          received_by_id: user.id,
+          status: ProductStatus.SOLD
+        },
+        include: {
+          categories: true,
+          uploaded_by: true,
+          received_by: true,
+        }
+      });
+      products.forEach((product:any) => {
+        product.id = Number(product.id);
+        product.uploaded_by.password = '';
+        if(product.received_by) product.received_by.password = '';
+      });
+      return products;
+    }
+    catch(e){
+      console.log(e);
+      return null;
+    }
+  }
+
+  async findUserBorrowedProduct(email: string) : Promise<Product[] | null> {
+    try{
+      const user:any = await this.db.user.findUnique({
+        where: {
+          email: email
+        }
+      });
+      const products:any = await this.db.product.findMany({
+        where: {
+          received_by_id: user.id,
+          status: ProductStatus.RENTED
+        },
+        include: {
+          categories: true,
+          uploaded_by: true,
+          received_by: true,
+        }
+      });
+      products.forEach((product:any) => {
+        product.id = Number(product.id);
+        product.uploaded_by.password = '';
+        if(product.received_by) product.received_by.password = '';
+      });
+      return products;
+    }
+    catch(e){
+      console.log(e);
+      return null;
+    }
+  }
+
+  async findUserSoldProduct(email: string) : Promise<Product[] | null> {
+    try{
+      const user:any = await this.db.user.findUnique({
+        where: {
+          email: email
+        }
+      });
+      const products:any = await this.db.product.findMany({
+        where: {
+          uploaded_by_id: user.id,
+          status: ProductStatus.SOLD
+        },
+        include: {
+          categories: true,
+          uploaded_by: true,
+          received_by: true,
+        }
+      });
+      products.forEach((product:any) => {
+        product.id = Number(product.id);
+        product.uploaded_by.password = '';
+        if(product.received_by) product.received_by.password = '';
+      });
+      return products;
+    }
+    catch(e){
+      console.log(e);
+      return null;
+    }
+  }
+
+  async findUserLentProduct(email: string) : Promise<Product[] | null> {
+    try{
+      const user:any = await this.db.user.findUnique({
+        where: {
+          email: email
+        }
+      });
+      const products:any = await this.db.product.findMany({
+        where: {
+          uploaded_by_id: user.id,
+          status: ProductStatus.RENTED
+        },
+        include: {
+          categories: true,
+          uploaded_by: true,
+          received_by: true,
+        }
+      });
+      products.forEach((product:any) => {
+        product.id = Number(product.id);
+        product.uploaded_by.password = '';
+        if(product.received_by) product.received_by.password = '';
       });
       return products;
     }
@@ -140,7 +253,8 @@ export class ProductsService {
       },
       include: {
         categories: true,
-        uploaded_by: true
+        uploaded_by: true,
+        received_by: true,
       }
     });
     product.id = Number(product.id);
@@ -152,11 +266,16 @@ export class ProductsService {
       const { id, categories, ...productData } = updateProductInput;
 
       const currentProduct:any = await this.db.product.findUnique({
+        //status: ProductStatus.AVAILABLE or ProductStatus.RENTED
         where: {
-          id: id
+          id: id,
+          status: {
+            in: [ProductStatus.AVAILABLE, ProductStatus.RENTED]
+          }
         },
         include: {
-          categories: true
+          categories: true,
+          uploaded_by: true
         }
       });
 
@@ -168,33 +287,46 @@ export class ProductsService {
         return null;
       }
 
-      const currentCategoryNames = currentProduct.categories.map(category => category.category.name);
+      const currentCategoryNames = currentProduct.categories.map(category => category.category_name);
       const newCategoryNames = categories.map(category => category.category_name);
 
       const categoriesToAdd = newCategoryNames.filter(name => !currentCategoryNames.includes(name));
       const categoriesToRemove = currentCategoryNames.filter(name => !newCategoryNames.includes(name));
 
-      const product:any = await this.db.product.update({
-        where: { id: id },
-        data: {
-          ...productData,
-          categories: {
-            connectOrCreate: categoriesToAdd.map(categoryName => ({
-              where: { product_id_category_name: { product_id: id, category_name: categoryName } },
-              create: { category_name: categoryName },
-            })),
-            disconnect: categoriesToRemove.map(categoryName => ({
-              product_id_category_name: { product_id: id, category_name: categoryName },
-            })),
+      return await this.db.$transaction(async (db) => {
+        const product:any = await db.product.update({
+          where: { id: id },
+          data: {
+            ...productData
           },
-        },
-        include: {
-          categories: true,
-          uploaded_by: true,
-        },
+          include: {
+            categories: true,
+            uploaded_by: true,
+            received_by: true,
+          },
+        });
+  
+        await db.productCategory.deleteMany({
+          where: {
+            product_id: id,
+            category_name: {
+              in: categoriesToRemove
+            }
+          }
+        });
+  
+        for (const categoryName of categoriesToAdd) {
+          await db.productCategory.create({
+            data: {
+              product_id: id,
+              category_name: categoryName
+            }
+          });
+        }
+  
+        product.id = Number(product.id);
+        return product;
       });
-      product.id = Number(product.id);
-      return product;
     }
     catch(e){
       console.log(e);
@@ -227,8 +359,8 @@ export class ProductsService {
         if (!product) {
           throw new Error('Product not found');
         }
-  
-        if (product.status !== ProductStatus.AVAILABLE) {
+        console.log(product);
+        if (product.status === ProductStatus.SOLD) {
           throw new ConflictException('Product is not available for sell');
         }
 
@@ -237,6 +369,9 @@ export class ProductsService {
         if (bookings && bookings.length > 0) {
           availableAfter = bookings[bookings.length - 1].end_date;
         }
+
+        console.log(bookings);
+        console.log(availableAfter);
   
         // Step 3: Perform the Action
         const updatedProduct:any = await db.product.update({
@@ -244,7 +379,12 @@ export class ProductsService {
           data: {
             status: ProductStatus.SOLD,
             received_by_id: userId,
-            sell_date: availableAfter
+            sell_date: availableAfter,
+          },
+          include: {
+            categories: true,
+            uploaded_by: true,
+            received_by: true,
           },
         });
         updatedProduct.id = Number(updatedProduct.id);
@@ -257,7 +397,7 @@ export class ProductsService {
     } 
   }
 
-  async rentProduct(productId: number, action: 'rent', start_date:Date, end_date:Date, email: string) : Promise<any> {
+  async rentProduct(productId: number, action: 'rent', start_date:Date, end_date:Date, email: string) : Promise<Boolean> {
     try{
       const user = await this.db.user.findUnique({
         where: { email: email },
@@ -274,6 +414,7 @@ export class ProductsService {
           select: {
             id: true,
             status: true,
+            rent_price_daily: true,
           }
         });
   
@@ -307,12 +448,14 @@ export class ProductsService {
           }
         });
         createBooking.id = Number(createBooking.id);
-        return createBooking;
+        await this.rentResolveSet();
+        await this.rentResolveDelete();
+        if(createBooking) return true;
       });
     }
     catch(e){
       console.log(e);
-      return e;
+      return false;
     }
   }
 
@@ -474,8 +617,8 @@ export class ProductsService {
   }
 
   async scheduleRentResolve() {
-    //at 12am every night
-    cron.schedule('0 0 * * *', async () => {
+    //at 23:00am every night
+    cron.schedule('0 23 * * *', async () => {
       console.log('Running scheduled tasks...');
       try{
         await this.rentResolveSet();

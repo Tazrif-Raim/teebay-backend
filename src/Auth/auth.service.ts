@@ -16,7 +16,7 @@ export class AuthService {
     private readonly saltRounds = 14;
 
     async registerUser(data: User): Promise<UpdateUserInput> {
-        data.password = bcrypt.hash(data.password, await bcrypt.genSalt(this.saltRounds));
+        data.password = await bcrypt.hash(data.password, await bcrypt.genSalt(this.saltRounds));
         data.createdAt = new Date();
         data.updatedAt = data.createdAt;
         console.log(data)
@@ -29,7 +29,10 @@ export class AuthService {
         }
         catch(e) {
             console.log(e);
-            return null;
+            if(e.code === 'P2002') {
+                throw new Error("Email already exists");
+            }
+            throw new Error("Something Went Wrong");
         }
     }
 

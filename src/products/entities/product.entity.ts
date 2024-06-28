@@ -2,6 +2,7 @@ import { ObjectType, Field, Int, ID } from '@nestjs/graphql';
 import { ProductStatus } from './product-status.enum';
 import { ProductCategory } from './product-category.entity';
 import { User } from '../../Auth/entities/user.entity';
+import { Booking } from './booking.entity';
 
 @ObjectType()
 export class Product {
@@ -24,16 +25,10 @@ export class Product {
   status: ProductStatus;
 
   @Field({ nullable: true })
-  sell_or_rent_time?: Date;
-
-  @Field({ nullable: true })
-  rent_time_end?: Date;
+  sell_date?: Date;
 
   @Field(type => User)
   uploaded_by?: User;
-
-  @Field()
-  uploaded_by_id: number;
 
   @Field()
   createdAt: Date;
@@ -44,10 +39,10 @@ export class Product {
   @Field(type => User, { nullable: true })
   received_by?: User;
 
-  @Field({ nullable: true })
-  received_by_id?: number;
-
   @Field(type => [ProductCategory])
   categories: ProductCategory[];
+
+  @Field(type => [Booking])
+  bookings: Booking[];
 }
 

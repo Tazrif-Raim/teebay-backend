@@ -21,11 +21,11 @@ export class AuthResolver {
         } 
         catch(e) {
             console.log(e);
-            return null;
+            return e;
         }
     }
 
-    @Query(returns => String, { name: 'token' })
+    @Mutation(returns => String)
     async login(@Args('LoginInput') loginInput: LoginInput) : Promise<string>{
         let user: User;
         try{
@@ -43,7 +43,7 @@ export class AuthResolver {
         }
     }
 
-    @Query(returns => Boolean)
+    @Mutation(returns => Boolean)
     async logout(@Args('token') token: string) : Promise<boolean>{
         try{
             return await this.authService.deleteSession(token);
