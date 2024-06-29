@@ -7,6 +7,7 @@ import { ProductStatus } from './entities/product-status.enum';
 import * as cron from 'node-cron';
 import { UserRelatedProducts } from './entities/UserRelatedProducts.entity';
 import { Booking } from '@prisma/client';
+import { ProductCategory } from './entities/product-category.entity';
 
 @Injectable()
 export class ProductsService {
@@ -67,7 +68,10 @@ export class ProductsService {
       const uploaded_by_id:any = user.id;
       const products:any = await this.db.product.findMany({
         where: {
-          uploaded_by_id: uploaded_by_id
+          uploaded_by_id: uploaded_by_id,
+          status: {
+            in: [ProductStatus.AVAILABLE, ProductStatus.RENTED],
+          }
         },
         include: {
           categories: true,
@@ -160,28 +164,54 @@ export class ProductsService {
           email: email
         }
       });
-      const products:any = await this.db.product.findMany({
+      const bookings:any = await this.db.booking.findMany({
         where: {
-          received_by_id: user.id,
-          status: ProductStatus.RENTED
+          user_id: user.id,
+          end_date: {
+            gt: new Date(),
+          },
+          start_date: {
+            lt: new Date(),
+          },
         },
         include: {
-          categories: true,
-          uploaded_by: true,
-          received_by: true,
+          product: {
+            include: {
+              categories: true,
+              uploaded_by: true,
+              received_by: true,
+            }
+          }
         }
       });
-      products.forEach((product:any) => {
+      return bookings.map((booking:any) => {
+        const product = booking.product;
         product.id = Number(product.id);
         product.uploaded_by.password = '';
         if(product.received_by) product.received_by.password = '';
+        return product;
       });
-      return products;
     }
     catch(e){
       console.log(e);
       return null;
     }
+  }
+
+  //expects an array of numbers
+  async rightNowRentedProductIds() : Promise<bigint[]> {
+    const bookings = await this.db.booking.findMany({
+      where: {
+        start_date: {
+          lt: new Date(),
+        },
+        end_date: {
+          gt: new Date(),
+        },
+      },
+    });
+    const productIds = bookings.map(booking => booking.product_id);
+    return productIds;
   }
 
   async findUserSoldProduct(email: string) : Promise<Product[] | null> {
@@ -225,20 +255,30 @@ export class ProductsService {
       const products:any = await this.db.product.findMany({
         where: {
           uploaded_by_id: user.id,
-          status: ProductStatus.RENTED
         },
         include: {
           categories: true,
           uploaded_by: true,
-          received_by: true,
+          received_by: true,   
         }
       });
-      products.forEach((product:any) => {
+      console.log(products);
+      console.log(products.length)
+      
+
+      const rentedProductIds = await this.rightNowRentedProductIds();
+      console.log(rentedProductIds);
+      //only porducts that has the ids in rentedProductIds
+      const productsToReturn = products.filter((product:any) => rentedProductIds.includes(product.id));
+      productsToReturn.forEach((product:any) => {
+        console.log(product.id);
         product.id = Number(product.id);
+        console.log(product.id)
         product.uploaded_by.password = '';
         if(product.received_by) product.received_by.password = '';
       });
-      return products;
+      
+      return productsToReturn;
     }
     catch(e){
       console.log(e);
@@ -345,7 +385,7 @@ export class ProductsService {
       const userId = user.id;
       return await this.db.$transaction(async (db) => {
         
-        await db.$executeRaw`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`;
+        await db.$executeRaw`SET TRANSACTION ISOLATION LEVEL SERIALIZABLE`; //REPEATABLE READ
         // Step 2: Check Availability with Locking
         
         const product = await db.product.findUnique({
@@ -422,7 +462,7 @@ export class ProductsService {
           throw new Error('Product not found');
         }
   
-        if (product.status !== ProductStatus.AVAILABLE) {
+        if (product.status === ProductStatus.SOLD) {
           throw new ConflictException('Product is not available for rent');
         }
 
@@ -472,6 +512,10 @@ export class ProductsService {
         },
         orderBy: {
           start_date: 'asc',
+        },
+        select: {
+          start_date: true,
+          end_date: true,
         }
       });
     }
@@ -617,8 +661,8 @@ export class ProductsService {
   }
 
   async scheduleRentResolve() {
-    //at 23:00am every night
-    cron.schedule('0 23 * * *', async () => {
+    //should be at 12:00am BDT, 6:00pm UTC
+    cron.schedule('0 18 * * *', async () => {
       console.log('Running scheduled tasks...');
       try{
         await this.rentResolveSet();
